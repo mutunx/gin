@@ -69,6 +69,7 @@ func TestMappingBaseTypes(t *testing.T) {
 
 func TestMappingDefault(t *testing.T) {
 	var s struct {
+		Str   string `form:",default=defaultVal"`
 		Int   int    `form:",default=9"`
 		Slice []int  `form:",default=9"`
 		Array [1]int `form:",default=9"`
@@ -76,6 +77,7 @@ func TestMappingDefault(t *testing.T) {
 	err := mappingByPtr(&s, formSource{}, "form")
 	require.NoError(t, err)
 
+	assert.Equal(t, "defaultVal", s.Str)
 	assert.Equal(t, 9, s.Int)
 	assert.Equal(t, []int{9}, s.Slice)
 	assert.Equal(t, [1]int{9}, s.Array)
@@ -150,6 +152,24 @@ func TestMappingForm(t *testing.T) {
 	err := mapForm(&s, map[string][]string{"field": {"6"}})
 	require.NoError(t, err)
 	assert.Equal(t, 6, s.F)
+}
+
+func TestMappingFormFieldNotSent(t *testing.T) {
+	var s struct {
+		F string `form:"field,default=defVal"`
+	}
+	err := mapForm(&s, map[string][]string{})
+	require.NoError(t, err)
+	assert.Equal(t, "defVal", s.F)
+}
+
+func TestMappingFormWithEmptyToDefault(t *testing.T) {
+	var s struct {
+		F string `form:"field,default=DefVal"`
+	}
+	err := mapForm(&s, map[string][]string{"field": {""}})
+	require.NoError(t, err)
+	assert.Equal(t, "DefVal", s.F)
 }
 
 func TestMapFormWithTag(t *testing.T) {
@@ -301,6 +321,72 @@ func TestMappingCollectionFormat(t *testing.T) {
 	assert.Equal(t, [2]int{1, 2}, s.ArraySsv)
 	assert.Equal(t, [2]int{1, 2}, s.ArrayTsv)
 	assert.Equal(t, [2]int{1, 2}, s.ArrayPipes)
+}
+
+func TestMappingCollectionFormatInvalid(t *testing.T) {
+	var s struct {
+		SliceCsv []int `form:"slice_csv" collection_format:"xxx"`
+	}
+	err := mappingByPtr(&s, formSource{
+		"slice_csv": {"1,2"},
+	}, "form")
+	require.Error(t, err)
+
+	var s2 struct {
+		ArrayCsv [2]int `form:"array_csv" collection_format:"xxx"`
+	}
+	err = mappingByPtr(&s2, formSource{
+		"array_csv": {"1,2"},
+	}, "form")
+	require.Error(t, err)
+}
+
+func TestMappingMultipleDefaultWithCollectionFormat(t *testing.T) {
+	var s struct {
+		SliceMulti       []int     `form:",default=1;2;3" collection_format:"multi"`
+		SliceCsv         []int     `form:",default=1;2;3" collection_format:"csv"`
+		SliceSsv         []int     `form:",default=1 2 3" collection_format:"ssv"`
+		SliceTsv         []int     `form:",default=1\t2\t3" collection_format:"tsv"`
+		SlicePipes       []int     `form:",default=1|2|3" collection_format:"pipes"`
+		ArrayMulti       [2]int    `form:",default=1;2" collection_format:"multi"`
+		ArrayCsv         [2]int    `form:",default=1;2" collection_format:"csv"`
+		ArraySsv         [2]int    `form:",default=1 2" collection_format:"ssv"`
+		ArrayTsv         [2]int    `form:",default=1\t2" collection_format:"tsv"`
+		ArrayPipes       [2]int    `form:",default=1|2" collection_format:"pipes"`
+		SliceStringMulti []string  `form:",default=1;2;3" collection_format:"multi"`
+		SliceStringCsv   []string  `form:",default=1;2;3" collection_format:"csv"`
+		SliceStringSsv   []string  `form:",default=1 2 3" collection_format:"ssv"`
+		SliceStringTsv   []string  `form:",default=1\t2\t3" collection_format:"tsv"`
+		SliceStringPipes []string  `form:",default=1|2|3" collection_format:"pipes"`
+		ArrayStringMulti [2]string `form:",default=1;2" collection_format:"multi"`
+		ArrayStringCsv   [2]string `form:",default=1;2" collection_format:"csv"`
+		ArrayStringSsv   [2]string `form:",default=1 2" collection_format:"ssv"`
+		ArrayStringTsv   [2]string `form:",default=1\t2" collection_format:"tsv"`
+		ArrayStringPipes [2]string `form:",default=1|2" collection_format:"pipes"`
+	}
+	err := mappingByPtr(&s, formSource{}, "form")
+	require.NoError(t, err)
+
+	assert.Equal(t, []int{1, 2, 3}, s.SliceMulti)
+	assert.Equal(t, []int{1, 2, 3}, s.SliceCsv)
+	assert.Equal(t, []int{1, 2, 3}, s.SliceSsv)
+	assert.Equal(t, []int{1, 2, 3}, s.SliceTsv)
+	assert.Equal(t, []int{1, 2, 3}, s.SlicePipes)
+	assert.Equal(t, [2]int{1, 2}, s.ArrayMulti)
+	assert.Equal(t, [2]int{1, 2}, s.ArrayCsv)
+	assert.Equal(t, [2]int{1, 2}, s.ArraySsv)
+	assert.Equal(t, [2]int{1, 2}, s.ArrayTsv)
+	assert.Equal(t, [2]int{1, 2}, s.ArrayPipes)
+	assert.Equal(t, []string{"1", "2", "3"}, s.SliceStringMulti)
+	assert.Equal(t, []string{"1", "2", "3"}, s.SliceStringCsv)
+	assert.Equal(t, []string{"1", "2", "3"}, s.SliceStringSsv)
+	assert.Equal(t, []string{"1", "2", "3"}, s.SliceStringTsv)
+	assert.Equal(t, []string{"1", "2", "3"}, s.SliceStringPipes)
+	assert.Equal(t, [2]string{"1", "2"}, s.ArrayStringMulti)
+	assert.Equal(t, [2]string{"1", "2"}, s.ArrayStringCsv)
+	assert.Equal(t, [2]string{"1", "2"}, s.ArrayStringSsv)
+	assert.Equal(t, [2]string{"1", "2"}, s.ArrayStringTsv)
+	assert.Equal(t, [2]string{"1", "2"}, s.ArrayStringPipes)
 }
 
 func TestMappingStructField(t *testing.T) {
